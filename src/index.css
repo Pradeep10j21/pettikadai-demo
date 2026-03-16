@@ -1514,12 +1514,12 @@ body {
 @media (max-width: 480px) {
   #root {
     max-width: 100vw;
-    max-height: 100vh;
+    max-height: 100dvh;
   }
 
   .chatbot-container {
     border-radius: 0;
-    height: 100vh;
+    height: 100dvh;
     width: 100vw;
   }
 
@@ -1547,5 +1547,6 @@ body {
 
   .chat-input-area {
     padding: 16px;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
   }
 }
