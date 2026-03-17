@@ -36,6 +36,12 @@ const Chatbot = () => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [orderHistory, setOrderHistory] = useState([]);
   const [inventory, setInventory] = useState({});
+  const [currentModel, setCurrentModel] = useState({
+    id: 'default',
+    name: 'Llama 3.3 (Groq)',
+    provider: 'groq',
+    cost: { in: 0, out: 0 }
+  });
   const messagesEndRef = useRef(null);
 
   // Load history and auto-dismiss splash
@@ -162,13 +168,13 @@ const Chatbot = () => {
 
     const processVal = val || msgText.toLowerCase();
 
-    setTimeout(() => {
-      processResponse(processVal);
+    setTimeout(async () => {
+      await processResponse(processVal);
       setIsTyping(false);
     }, 1000);
   };
 
-  const processResponse = (query) => {
+  const processResponse = async (query) => {
     let response = { id: Date.now(), type: 'bot', text: "" };
     const lower = typeof query === 'string' ? query.toLowerCase() : "";
 
@@ -234,22 +240,22 @@ const Chatbot = () => {
         response.text = "Please enter your 6-digit Order ID to track your savory treats! (e.g., '123456')";
         response.showActions = false;
       }
-    } else if (lower === 'see_history' || lower.includes('history')) {
+    } else if (lower === 'see_history' || lower === 'order history' || lower === 'my orders') {
       if (orderHistory.length > 0) {
         response.text = "I found your recent orders! 📦 Click any to view the receipt.";
         response.showHistory = true;
       } else {
         response.text = "You don't have any recent orders yet.";
       }
-    } else if (lower === 'track_live' || lower.includes('live order')) {
+    } else if (lower === 'track_live' || lower === 'live order') {
       response.text = "Please enter your 6-digit Order ID to track your savory treats! (e.g., '123456')";
       response.showActions = false;
-    } else if (/\d{3,}/.test(query)) {
-      const orderId = query.match(/\d{3,}/)[0];
+    } else if (/^\d{3,}$/.test(query.trim())) {
+      const orderId = query.trim();
       const step = Math.floor(Math.random() * 4);
       response.text = `Here's the tracking status for your order:`;
       response.tracker = { orderId, currentStep: step };
-    } else if (lower.includes('popular')) {
+    } else if (lower.includes('popular') || lower.includes('bestseller') || lower.includes('best seller')) {
       const popularNames = ['Butter Murukku', 'Madras Mixture', 'Banana Chips', 'Onion Pakoda', 'Idli Podi', 'Mixture Ladoo'];
       const allItems = menuData.categories.flatMap(c => c.items);
       const popularItems = popularNames.map(name => allItems.find(i => i.name === name)).filter(Boolean).map(item => ({
@@ -260,7 +266,138 @@ const Chatbot = () => {
       }));
       response.text = "🔥 Here are our bestsellers — the crowd favorites!";
       response.carousel = popularItems;
-    } else if (query.includes('support')) {
+    } else if (
+      lower.includes('try') || lower.includes('suggest') || lower.includes('recommend') || 
+      lower.includes('something') || lower.includes('what should') || lower.includes('surprise')
+    ) {
+      const allItems = menuData.categories.flatMap(c => c.items);
+
+      // Detect category or preference keywords
+      const categoryMap = {
+        'spicy': items => items.filter(i => i.spiceLevel >= 4),
+        'hot': items => items.filter(i => i.spiceLevel >= 4),
+        'mild': items => items.filter(i => i.spiceLevel <= 1),
+        'light': items => items.filter(i => i.spiceLevel <= 1),
+        'sweet': items => items.filter(i => i.category?.toLowerCase().includes('sweet') || i.spiceLevel === 0),
+        'crunchy': items => items.filter(i => i.description?.toLowerCase().includes('crunchy') || i.description?.toLowerCase().includes('crisp')),
+        'crispy': items => items.filter(i => i.description?.toLowerCase().includes('crispy') || i.description?.toLowerCase().includes('crisp') || i.description?.toLowerCase().includes('fried')),
+        'murukku': items => items.filter(i => i.category?.toLowerCase().includes('murukku')),
+        'snack': items => items.filter(i => i.category?.toLowerCase().includes('fried') || i.category?.toLowerCase().includes('snack')),
+        'powder': items => items.filter(i => i.category?.toLowerCase().includes('podi')),
+        'podi': items => items.filter(i => i.category?.toLowerCase().includes('podi')),
+        'chips': items => items.filter(i => i.name?.toLowerCase().includes('chips') || i.name?.toLowerCase().includes('vadam')),
+        'healthy': items => items.filter(i => i.name?.toLowerCase().includes('flax') || i.description?.toLowerCase().includes('nutritious')),
+        'fried': items => items.filter(i => i.category?.toLowerCase().includes('fried')),
+        'new': items => items.sort(() => Math.random() - 0.5),
+      };
+
+      let matchedItems = [];
+      let matchedKeyword = '';
+
+      for (const [keyword, filterFn] of Object.entries(categoryMap)) {
+        if (lower.includes(keyword)) {
+          matchedItems = filterFn([...allItems]);
+          matchedKeyword = keyword;
+          break;
+        }
+      }
+
+      // If no specific preference detected, pick random items across categories
+      if (matchedItems.length === 0) {
+        matchedItems = [...allItems].sort(() => Math.random() - 0.5);
+        matchedKeyword = 'random';
+      }
+
+      const itemsToShow = matchedItems.slice(0, 5).map(item => ({
+        ...item,
+        image: item.name?.toLowerCase().includes('murukku') ? '/images/butter_murukku.png' :
+               item.name?.toLowerCase().includes('mixture') ? '/images/mixture.png' :
+               item.category?.toLowerCase().includes('sweet') ? '/images/sweet.png' : '/images/kaaram.png'
+      }));
+
+      const messages = {
+        'spicy': "🌶️ Love the heat? Here are our spiciest picks!",
+        'hot': "🌶️ Love the heat? Here are our spiciest picks!",
+        'mild': "😌 Something gentle on the palate — here are our mildest treats!",
+        'light': "😌 Something light and lovely — check these out!",
+        'sweet': "🍬 Got a sweet tooth? You'll love these!",
+        'crunchy': "🥜 Craving some crunch? These are SUPER satisfying!",
+        'crispy': "✨ Crispy & golden — these are irresistible!",
+        'murukku': "🌀 Murukku lover? You're in for a treat!",
+        'snack': "🍟 Perfect snack picks — try these!",
+        'powder': "🧂 Our podis & dry chutneys are game-changers!",
+        'podi': "🧂 Our podis add magic to any meal!",
+        'chips': "🍌 Chips & vadams — the perfect crispy companions!",
+        'healthy': "🌿 Healthy & tasty — the best of both worlds!",
+        'fried': "🍟 Golden & fried to perfection — dig in!",
+        'new': "🎲 Here's a fun mix just for you!",
+        'random': "🎉 Here are some handpicked goodies just for you!"
+      };
+
+      response.text = messages[matchedKeyword] || "🎉 Here are some amazing picks for you!";
+      response.carousel = itemsToShow;
+    } 
+    // ── 4. DeepInfra Testing Mode ──
+    else if (lower === 'deepinfra') {
+      const deepModels = [
+        { id: 'zai-org/GLM-5', name: 'GLM-5', in: 0.41, out: 2.56 },
+        { id: 'zai-org/GLM-4.7-Flash', name: 'GLM-4.7 Flash', in: 0.02, out: 0.40 },
+        { id: 'zai-org/GLM-4.6', name: 'GLM-4.6', in: 0.43, out: 1.74 },
+        { id: 'zai-org/GLM-4.6V', name: 'GLM-4.6V', in: 0.30, out: 0.90 },
+        { id: 'google/gemma-3-27b-it', name: 'Gemma 3 27B', in: 0.08, out: 0.16 },
+        { id: 'google/gemma-3-12b-it', name: 'Gemma 3 12B', in: 0.04, out: 0.13 },
+        { id: 'google/gemma-3-4b-it', name: 'Gemma 3 4B', in: 0.04, out: 0.08 },
+        { id: 'deepseek-ai/DeepSeek-V3.2', name: 'DeepSeek V3.2', in: 0.26, out: 0.38 },
+        { id: 'deepseek-ai/DeepSeek-R1-0528', name: 'DeepSeek R1-0528', in: 0.50, out: 2.15 },
+        { id: 'deepseek-ai/DeepSeek-R1-0528-Turbo', name: 'DeepSeek R1-0528-Turbo', in: 0.40, out: 1.80 },
+        { id: 'deepseek-ai/DeepSeek-V3', name: 'DeepSeek V3', in: 0.38, out: 0.89 },
+        { id: 'deepseek-ai/DeepSeek-V3-0324', name: 'DeepSeek V3-0324', in: 0.35, out: 0.85 },
+        { id: 'deepseek-ai/DeepSeek-V3.1', name: 'DeepSeek V3.1', in: 0.25, out: 0.80 },
+        { id: 'deepseek-ai/DeepSeek-V3.1-Terminus', name: 'DeepSeek V3.1-Terminus', in: 0.21, out: 0.79 },
+        { id: 'deepseek-ai/DeepSeek-R1-Distill-Llama-70B', name: 'DeepSeek R1 70B', in: 0.70, out: 0.80 },
+        { id: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo', name: 'Llama 3.1 8B Turbo', in: 0.02, out: 0.03 }
+      ];
+      response.text = "🛠️ **DeepInfra Testing Mode**\nSelect a model to switch the AI provider. Current responses will use this selection.";
+      response.options = deepModels.map(m => ({
+        label: `${m.name} ($${m.in}/$${m.out})`,
+        value: `set_model_${m.id}`
+      }));
+    } 
+    else if (lower.startsWith('set_model_')) {
+      const modelId = query.split('set_model_')[1];
+      const deepModels = [
+        { id: 'zai-org/GLM-5', name: 'GLM-5', in: 0.41, out: 2.56 },
+        { id: 'zai-org/GLM-4.7-Flash', name: 'GLM-4.7 Flash', in: 0.02, out: 0.40 },
+        { id: 'zai-org/GLM-4.6', name: 'GLM-4.6', in: 0.43, out: 1.74 },
+        { id: 'zai-org/GLM-4.6V', name: 'GLM-4.6V', in: 0.30, out: 0.90 },
+        { id: 'google/gemma-3-27b-it', name: 'Gemma 3 27B', in: 0.08, out: 0.16 },
+        { id: 'google/gemma-3-12b-it', name: 'Gemma 3 12B', in: 0.04, out: 0.13 },
+        { id: 'google/gemma-3-4b-it', name: 'Gemma 3 4B', in: 0.04, out: 0.08 },
+        { id: 'deepseek-ai/DeepSeek-V3.2', name: 'DeepSeek V3.2', in: 0.26, out: 0.38 },
+        { id: 'deepseek-ai/DeepSeek-R1-0528', name: 'DeepSeek R1-0528', in: 0.50, out: 2.15 },
+        { id: 'deepseek-ai/DeepSeek-R1-0528-Turbo', name: 'DeepSeek R1-0528-Turbo', in: 0.40, out: 1.80 },
+        { id: 'deepseek-ai/DeepSeek-V3', name: 'DeepSeek V3', in: 0.38, out: 0.89 },
+        { id: 'deepseek-ai/DeepSeek-V3-0324', name: 'DeepSeek V3-0324', in: 0.35, out: 0.85 },
+        { id: 'deepseek-ai/DeepSeek-V3.1', name: 'DeepSeek V3.1', in: 0.25, out: 0.80 },
+        { id: 'deepseek-ai/DeepSeek-V3.1-Terminus', name: 'DeepSeek V3.1-Terminus', in: 0.21, out: 0.79 },
+        { id: 'deepseek-ai/DeepSeek-R1-Distill-Llama-70B', name: 'DeepSeek R1 70B', in: 0.70, out: 0.80 },
+        { id: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo', name: 'Llama 3.1 8B Turbo', in: 0.02, out: 0.03 }
+      ];
+      const selected = deepModels.find(m => m.id === modelId);
+      if (selected) {
+        setCurrentModel({
+          id: selected.id,
+          name: selected.name,
+          provider: 'deepinfra',
+          cost: { in: selected.in, out: selected.out }
+        });
+        response.text = `✅ **Switched to ${selected.name}** via DeepInfra.\nAll subsequent RAG queries will use this model.`;
+      }
+    }
+    else if (lower === 'deepmodel') {
+      response.text = `📡 **Active Model Status**\n\n- **Model**: ${currentModel.name}\n- **ID**: \`${currentModel.id}\`\n- **Provider**: ${currentModel.provider.toUpperCase()}\n- **Input Cost**: $${currentModel.cost.in}/1M tokens\n- **Output Cost**: $${currentModel.cost.out}/1M tokens`;
+    }
+    else if (lower === 'support' || lower === 'contact support' || lower === 'help support') {
       response.text = "You can reach our food support team at support@pettikadai.com or call us at +91 98765 43210.";
     } else {
       const allItems = menuData.categories.flatMap(c => c.items);
@@ -271,22 +408,19 @@ const Chatbot = () => {
       
       const foundItems = allItems.filter(item => {
         const itemNameLower = item.name.toLowerCase();
-        // Match if user typed the exact item name
         if (lower.includes(itemNameLower)) return true;
-        // Match if user typed a key descriptive word that is in the item name
         if (searchTerms.length > 0 && searchTerms.some(term => itemNameLower.includes(term))) return true;
         return false;
       });
       
       if (foundItems.length > 0) {
-        const itemsToShow = foundItems.slice(0, 5); // Limit to 5 results
+        const itemsToShow = foundItems.slice(0, 5);
         if (itemsToShow.length === 1) {
           const foundItem = itemsToShow[0];
           response.text = `**${foundItem.name}**: ${foundItem.description}\n\nPrice: ₹${foundItem.price} / ${foundItem.unit}`;
         } else {
           response.text = `I found a few items that match your request!`;
         }
-        // Show as a carousel so they can easily add to cart
         response.carousel = itemsToShow.map(item => ({
           ...item,
           image: item.name.toLowerCase().includes('murukku') ? '/images/butter_murukku.png' :
@@ -294,7 +428,24 @@ const Chatbot = () => {
                  item.name.toLowerCase().includes('sweet') || item.name.toLowerCase().includes('ladoo') ? '/images/sweet.png' : '/images/kaaram.png'
         }));
       } else {
-        response.text = "I'm not sure about that. Try asking for the 'menu' or about a specific category like 'Murukku'!";
+        // Fallback to RAG Backend
+        try {
+          const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+          const res = await fetch(`${backendUrl}/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              query: lower,
+              model: currentModel.id !== 'default' ? currentModel.id : undefined,
+              provider: currentModel.id !== 'default' ? currentModel.provider : undefined
+            })
+          });
+          const data = await res.json();
+          response.text = data.answer || "I'm not sure about that. Try asking for the 'menu' or about a specific category like 'Murukku'!";
+        } catch (error) {
+          console.error("RAG Backend error:", error);
+          response.text = "I'm having a bit of trouble connecting to my knowledge base, but I can still show you our menu! Just say 'menu'.";
+        }
       }
     }
 

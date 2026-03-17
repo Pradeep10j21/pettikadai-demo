@@ -1,5 +1,27 @@
-node_modules
-dist
+# Dependency directories
+node_modules/
+backend/venv/
+venv/
+__pycache__/
+*.pyc
+
+# Environment variables
+.env
+backend/.env
+
+# Build outputs
+dist/
+build/
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# FAISS Index
+backend/faiss_index/
+
 .env
 .DS_Store
 *.log

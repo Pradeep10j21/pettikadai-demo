@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+faiss-cpu
+pypdf
+groq
+openai
+python-dotenv
+scikit-learn
+numpy
+gunicorn
