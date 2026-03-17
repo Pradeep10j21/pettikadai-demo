@@ -65,6 +65,19 @@ const Chatbot = () => {
     }
     
     const timer = setTimeout(() => setShowSplash(false), 2800);
+    
+    // Wake up backend (Render free tier spin-up)
+    const wakeUp = async () => {
+      try {
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+        await fetch(`${backendUrl}/health`);
+        console.log("Backend wake-up ping sent.");
+      } catch (e) {
+        console.log("Backend wake-up attempt failed (sleeping or unreachable).");
+      }
+    };
+    wakeUp();
+
     return () => clearTimeout(timer);
   }, []);
 
