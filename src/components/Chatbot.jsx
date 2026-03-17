@@ -416,7 +416,7 @@ const Chatbot = () => {
       const allItems = menuData.categories.flatMap(c => c.items);
       
       // Filter out common conversational words
-      const stopWords = ['can', 'you', 'give', 'me', 'some', 'the', 'a', 'an', 'is', 'for', 'want', 'like', 'show', 'have', 'do', 'i', 'get'];
+      const stopWords = ['can', 'you', 'give', 'me', 'some', 'the', 'a', 'an', 'is', 'for', 'want', 'like', 'show', 'have', 'do', 'i', 'get', 'what', 'of', 'how', 'much', 'price', 'cost'];
       const searchTerms = lower.split(' ').filter(word => !stopWords.includes(word) && word.length > 2);
       
       const foundItems = allItems.filter(item => {
@@ -425,8 +425,11 @@ const Chatbot = () => {
         if (searchTerms.length > 0 && searchTerms.some(term => itemNameLower.includes(term))) return true;
         return false;
       });
+
+      // Check if it's a complex query that needs RAG (price questions, multiple items, weights)
+      const isComplexQuery = lower.includes('price') || lower.includes('cost') || lower.includes('how much') || lower.includes(' and ') || lower.match(/\d+\s*(kg|g|gm|gms)/);
       
-      if (foundItems.length > 0) {
+      if (!isComplexQuery && foundItems.length > 0) {
         const itemsToShow = foundItems.slice(0, 5);
         if (itemsToShow.length === 1) {
           const foundItem = itemsToShow[0];
@@ -454,7 +457,25 @@ const Chatbot = () => {
             })
           });
           const data = await res.json();
-          response.text = data.answer || "I'm not sure about that. Try asking for the 'menu' or about a specific category like 'Murukku'!";
+          const answer = data.answer || "I'm not sure about that. Try asking for the 'menu' or about a specific category like 'Murukku'!";
+          response.text = answer;
+
+          // Try to identify products mentioned in the RAG response
+          const allItems = menuData.categories.flatMap(c => c.items);
+          const mentionedItems = allItems.filter(item => 
+            answer.toLowerCase().includes(item.name.toLowerCase())
+          );
+
+          if (mentionedItems.length > 0) {
+            // Take the first 3 unique mentioned items and show them in a carousel or as recommendations
+            response.carousel = mentionedItems.slice(0, 3).map(item => ({
+              ...item,
+              image: item.name.toLowerCase().includes('murukku') ? '/images/butter_murukku.png' :
+                     item.name.toLowerCase().includes('mixture') ? '/images/mixture.png' :
+                     item.name.toLowerCase().includes('sweet') || item.name.toLowerCase().includes('ladoo') ? '/images/sweet.png' :
+                     item.category.toLowerCase().includes('oil') ? '/images/kaaram.png' : '/images/kaaram.png'
+            }));
+          }
         } catch (error) {
           console.error("RAG Backend error:", error);
           response.text = "I'm having a bit of trouble connecting to my knowledge base, but I can still show you our menu! Just say 'menu'.";
